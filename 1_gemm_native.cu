@@ -1,6 +1,17 @@
 #include <cuda_runtime.h>
 #include <iostream>
 
+// Helper macro for CUDA error checking
+#define cudaCheckError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 // Native GEMM kernel: C = alpha * A * B + beta * C
 // Simple implementation where each thread computes one element of C
 __global__ void gemm_native(const float* __restrict__ A,
@@ -38,12 +49,15 @@ extern "C" void solve_native(const float* A, const float* B, float* C,
               
     // Launch the kernel
     gemm_native<<<grid, block>>>(A, B, C, M, N, K, alpha, beta);
-    cudaDeviceSynchronize();
+      // Check for kernel launch errors
+    cudaCheckError(cudaGetLastError());
+    // Check for execution errors
+    cudaCheckError(cudaDeviceSynchronize());
 }
 
 int main() {
     const int M = 512, N= 512, K=512;
-    const float = alpha = 1.0f, beta = 0.0f;
+    const float alpha = 1.0f, beta = 0.0f;
 
     size_t sizeA = M * K * sizeof(float);
     size_t sizeB = K * N * sizeof(float);
@@ -66,7 +80,7 @@ int main() {
     for (int i = 0; i < M * N; ++i) C_h[i] = 0.0f;
 
     //copy data to device
-    cudaMemcpy(A_d, sizeA, cudaMemcpyHostToDevice);
+    cudaMemcpy(A_d, A_h,sizeA, cudaMemcpyHostToDevice);
     cudaMemcpy(B_d, B_h, sizeB, cudaMemcpyHostToDevice);
     cudaMemcpy(C_d, C_h, sizeC, cudaMemcpyHostToDevice);
 
@@ -74,7 +88,7 @@ int main() {
     solve_native(A_d, B_d, C_d, M, N, K, alpha, beta);
 
     //copy result back to host
-    cudaMemcpy(C_h, c_d, sizeC,cudaMemcpyDeviceTHost);
+    cudaMemcpy(C_h, C_d, sizeC, cudaMemcpyDeviceToHost);
 
     //Print a sample result
     std::cout << "Sample result -C[0][0] = " << C_h[0] << std::endl;
