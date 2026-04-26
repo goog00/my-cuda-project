@@ -84,8 +84,11 @@ int main() {
     cudaMemcpy(B_d, B_h, sizeB, cudaMemcpyHostToDevice);
     cudaMemcpy(C_d, C_h, sizeC, cudaMemcpyHostToDevice);
 
-    // run the gemm compution
-    solve_native(A_d, B_d, C_d, M, N, K, alpha, beta);
+    // run the gemm computation multiple times to amplify kernel time for profiling
+    const int REPS = 1000;
+    for (int i = 0; i < REPS; ++i) {
+        solve_native(A_d, B_d, C_d, M, N, K, alpha, beta);
+    }
 
     //copy result back to host
     cudaMemcpy(C_h, C_d, sizeC, cudaMemcpyDeviceToHost);

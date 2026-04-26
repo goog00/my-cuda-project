@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <iostream>
+#include <stdio.h> // 添加这个头文件
 
 
 // Helper macro for CUDA error checking
@@ -35,7 +36,7 @@ __global__ void gemm_coalesced_only(const float* __restrict__ A, const float* __
 extern "C" void solve_coalesced_only(const float* A, const float* B, float* C, int M, int N, int K, float alpha, float beta) {
 	const int BLOCK_X = 256;
 	dim3 block(BLOCK_X);
-	dim3 grid(N + BLOCK_X -1) / BLOCK_X, M);
+	dim3 grid((N + BLOCK_X -1) / BLOCK_X, M); // 修复语法错误
 
 	gemm_coalesced_only<<<grid, block>>>(A, B, C, M, N, K, alpha, beta);
 
@@ -54,6 +55,10 @@ int main() {
 	size_t sizeB = K * N * sizeof(float);
 	size_t sizeC = M * N * sizeof(float);
 
+	// allocate host memory
+	float * A_h = (float*)malloc(sizeA);
+	float * B_h = (float*)malloc(sizeB);
+	float * C_h = (float*)malloc(sizeC);
 
 	//alocate device memory
 	float * A_d, *B_d, *C_d;
@@ -69,12 +74,15 @@ int main() {
 
 
     //copy data to device
-    cudaMemcpy(A_d，A_h, sizeA, cudaMemcpyHostToDevice);
+    cudaMemcpy(A_d, A_h, sizeA, cudaMemcpyHostToDevice);  // 修复这里的字符错误
     cudaMemcpy(B_d, B_h, sizeB, cudaMemcpyHostToDevice);
-    cudaMemcpy(C_d, C_h,sizeC, cudaMemcpyHostToDevice);
+    cudaMemcpy(C_d, C_h, sizeC, cudaMemcpyHostToDevice);
 
-    //run gemm
-    solve_coalesced_only(A_d, B_d, C_d, M, N, K, alpha, beta);
+	//run gemm multiple times to amplify kernel time for profiling
+	const int REPS = 1000;
+	for (int i = 0; i < REPS; ++i) {
+		solve_coalesced_only(A_d, B_d, C_d, M, N, K, alpha, beta);
+	}
 
     //copy result back to host
     cudaMemcpy(C_h, C_d, sizeC, cudaMemcpyDeviceToHost);
